@@ -1,26 +1,27 @@
 # 04 · Dockerfile 编写与最佳实践
 
-Dockerfile 是构建镜像的"食谱"。每条指令 = 一层。
+Dockerfile 是构建镜像的"食谱"。
+每条指令 等于 一层。
 
 ## 全部指令速查
-| 指令 | 作用 |
-|------|------|
-| `FROM <img>` | 基础镜像（必须为第一条，除 ARG 可前导） |
-| `RUN <cmd>` | 构建时执行命令，结果固化进镜像层 |
-| `CMD ["exec","args"]` | 容器启动时默认命令（可被 `run` 后面的参数覆盖） |
-| `ENTRYPOINT` | 容器入口，CMD 当作它的参数 |
-| `COPY <src> <dst>` | 从构建上下文拷文件进镜像 |
-| `ADD <src> <dst>` | 同 COPY，但能自动解压本地 tar、支持 URL（少用） |
-| `ENV <k>=<v>` | 设置环境变量（固化进镜像） |
-| `ARG <k>[=<default>]` | 构建期变量（不固化进最终镜像） |
-| `WORKDIR <path>` | 切换工作目录（不存在则创建） |
-| `EXPOSE <port>` | 声明容器监听端口（文档作用，不自动映射） |
-| `VOLUME <path>` | 声明挂载点（运行时匿名卷） |
-| `USER <uid>` | 指定运行用户（安全，别全程 root） |
-| `HEALTHCHECK` | 定义健康检查命令 |
-| `LABEL <k>=<v>` | 元数据（作者/版本等） |
+| 指令                      | 作用                             |
+| ----------------------- | ------------------------------ |
+| `FROM <img>`            | 基础镜像（必须为第一条，除 ARG 可前导）         |
+| `RUN <cmd>`             | 构建时执行命令，结果固化进镜像层               |
+| `CMD ["exec","args"]`   | 容器启动时默认命令（可被 `run` 后面的参数覆盖）    |
+| `ENTRYPOINT`            | 容器入口，CMD 当作它的参数                |
+| `COPY <src> <dst>`      | 从构建上下文拷文件进镜像                   |
+| `ADD <src> <dst>`       | 同 COPY，但能自动解压本地 tar、支持 URL（少用） |
+| `ENV <k>=<v>`           | 设置环境变量（固化进镜像）                  |
+| `ARG <k>[=<default>]`   | 构建期变量（不固化进最终镜像）                |
+| `WORKDIR <path>`        | 切换工作目录（不存在则创建）                 |
+| `EXPOSE <port>`         | 声明容器监听端口（文档作用，不自动映射）           |
+| `VOLUME <path>`         | 声明挂载点（运行时匿名卷）                  |
+| `USER <uid>`            | 指定运行用户（安全，别全程 root）            |
+| `HEALTHCHECK`           | 定义健康检查命令                       |
+| `LABEL <k>=<v>`         | 元数据（作者/版本等）                    |
 | `SHELL ["exec","args"]` | 指定 RUN/CMD/ENTRYPOINT 用的 shell |
-| `ONBUILD <指令>` | 当本镜像被别人 FROM 时触发 |
+| `ONBUILD <指令>`          | 当本镜像被别人 FROM 时触发               |
 
 ## CMD vs ENTRYPOINT（最常混淆）
 - `CMD`：默认命令，**可被 `docker run` 后面的参数覆盖**
@@ -28,6 +29,7 @@ Dockerfile 是构建镜像的"食谱"。每条指令 = 一层。
   CMD ["nginx", "-g", "daemon off;"]
   # docker run myimg /bin/bash  → 直接进 bash，CMD 被忽略
   ```
+
 - `ENTRYPOINT`：入口命令，**run 后面的参数会作为它的参数追加**
   ```dockerfile
   ENTRYPOINT ["nginx"]
