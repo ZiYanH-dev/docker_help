@@ -16,13 +16,13 @@
 | 07  | [07_compose.md](07_compose.md)                   | 多服务编排、常用字段、命令                  | 一键起整套环境时       |
 | 08  | [08_registry.md](08_registry.md)                 | Docker Hub、私有仓库、镜像加速           | 推拉镜像 / 配加速时    |
 | 09  | [09_ops_troubleshoot.md](09_ops_troubleshoot.md) | 清理、磁盘占用、常见报错、镜像瘦身              | 翻车 / 磁盘爆了时     |
-| 10  | [10_storage_cleanup.md](10_storage_cleanup.md) | Docker 存储架构、清理原理、磁盘压缩、本机方案       | 磁盘被 Docker 吃光时  |
+| 10  | [10_storage_cleanup.md](10_storage.md) | Docker 存储架构、清理原理、磁盘压缩、本机方案       | 磁盘被 Docker 吃光时  |
 
-## 怎么用
+## 使用方式
 - 直接打开对应文件；想全局搜命令：`grep -rn "EXPOSE" .`
 - 本套聚焦 Docker 本身；通用 Linux 命令见你另一套 `cmd_help/` 系列。
 
-## ⚠️ 平台注意
+## 平台注意
 - **macOS**：Docker 跑在 Docker Desktop 自带的轻量 Linux VM 里，**不是原生**。
   所以"进容器 = Linux 环境"依然成立，但宿主机是 macOS，路径/权限/端口转发偶有差异。
 - **Linux**：Docker 原生，性能最好，生产几乎都是 Linux。

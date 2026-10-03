@@ -1,10 +1,23 @@
-# 07 · Docker Compose（多服务编排）
+
+# 07 · Docker Compose（多容器编排）
+
+## 本页核心
+
+- **本质**：Compose = 用**一个 YAML 文件 声明整套多容器系统**（服务 + 网络 + 卷），一条命令拉起
+
+- **最重要**：`services` 是核心段；**服务名 = DNS 名**；`docker compose up -d` 一键起、`down` 停
+
+- **绑定的机制**：Docker 里没有"容器组"对象；一组容器 = 带同一个 `com.docker.compose.project` 标签的对象集合
+
+- **一句话**：把几十行 `docker run` 换成一份 YAML + 一条命令
+
+---
 
 Compose 把一个多容器系统（服务 + 网络 + 卷 + 配置）声明在一个 YAML 文件中，一条命令拉起整套环境。
 
 ---
 
-## 1. 为什么需要 Compose？
+## 1. Compose 的必要性
 
 ```
 无 Compose：
@@ -22,9 +35,9 @@ Compose 把一个多容器系统（服务 + 网络 + 卷 + 配置）声明在一
 | 场景              | 纯 Docker         | Compose    |
 | --------------- | ---------------- | ---------- |
 | 单个容器            | `docker run ...` | 不需 Compose |
-| 2-3 个关联容器       | 勉强可用 `--link`    | ✅ 推荐       |
-| 4+ 个服务，有网络/卷/依赖 | ❌ 命令太长           | ✅ 声明式管理    |
-| 团队协作            | 需手写文档说明启动方式      | ✅ YAML 即文档 |
+| 2-3 个关联容器       | 勉强可用 `--link`    | 推荐       |
+| 4+ 个服务，有网络/卷/依赖 | 命令太长           | 声明式管理    |
+| 团队协作            | 需手写文档说明启动方式      | YAML 即文档 |
 
 ---
 
@@ -54,6 +67,64 @@ services（容器模板）
   ├── 引用 volumes（命名卷或绑定挂载）
   ├── 引用 networks
   └── 引用 configs / secrets
+```
+
+**前置概念：Compose 里没有"容器组"这个 Docker 对象。**
+
+Docker 引擎中不存在 `compose project` / `container group` 这类对象。
+
+Compose 的"一组容器"完全是客户端算出来的集合，靠两层东西：
+
+```
+① project name（项目名）
+   ├── 默认 = docker-compose.yml 所在目录的目录名（转小写、去掉非法字符）
+   ├── 可用 -p <name> 或环境变量 COMPOSE_PROJECT_NAME 覆盖
+   └── 同一个目录 up 两次 → project name 相同 → 视为同一组
+
+② label（标签）
+   └── 本文件创建的每个容器 / 网络 / 卷，都被写上
+       com.docker.compose.project = <project name>
+```
+
+**"绑定在一起"的字面实现 = 所有对象都带同一个 project 标签。**
+
+**所有 compose 子命令 = 先按 `--filter label=com.docker.compose.project=<name>` 查出这一组对象，再对它们批量调用普通 docker API。**
+
+实际写入的标签（本机 `fullstack-demo` 项目实测）：
+
+| 对象 | 标签 |
+|------|------|
+| 容器 | `com.docker.compose.project` / `.service` / `.container-number` / `.config-hash` / `.image` / `.oneoff` / `project.working_dir` / `project.config_files` / `version` / `depends_on` |
+| 网络 | `com.docker.compose.project` / `.network` / `.config-hash` / `version` |
+| 卷 | `com.docker.compose.project` / `.volume` / `.config-hash` / `version` |
+
+**自动命名规则：**
+
+```
+容器名：<project>-<service>-<序号>      # myapp-web-1、myapp-db-1
+  ├── 序号从 1 开始；--scale web=3 时是 -1 / -2 / -3
+  └── 写了 container_name: 就用写死的名字、不再带序号（代价：该服务不能 --scale）
+
+网络名：<project>_default                # YAML 里没声明 networks 时
+        <project>_<自定义网络名>          # 声明了 networks 时
+
+卷名  ：<project>_<卷名>                 # fullstack-demo_pgdata
+```
+
+**验证这套机制的命令（本机可直接跑）：**
+
+```bash
+# 看某个 project 的全部容器
+docker ps -a --filter "label=com.docker.compose.project=fullstack-demo"
+
+# 看某个 project 的网络
+docker network ls --filter "label=com.docker.compose.project=fullstack-demo"
+
+# 看容器的全部 compose 标签
+docker inspect fullstack-demo-backend --format '{{json .Config.Labels}}'
+
+# 列出本机所有 compose project 名
+docker ps -a --format '{{.Label "com.docker.compose.project"}}' | sort -u
 ```
 
 ---
@@ -217,12 +288,12 @@ services:
     restart: unless-stopped    # 最常用
 ```
 
-| 策略 | 行为 |
-|------|------|
-| `no`（默认） | 退出不重启 |
-| `always` | 总是重启（包括手动停止后重启） |
-| `on-failure` | 非正常退出（exit code ≠ 0）才重启 |
-| `unless-stopped` | 退出重启，但手动停止后不重启 |
+| 策略               | 行为                      |
+| ---------------- | ----------------------- |
+| `no`（默认）         | 退出不重启                   |
+| `always`         | 总是重启（包括手动停止后重启）         |
+| `on-failure`     | 非正常退出（exit code ≠ 0）才重启 |
+| `unless-stopped` | 退出重启，但手动停止后不重启          |
 
 ### 3.8 资源限制
 
@@ -407,21 +478,85 @@ DB_PASSWORD=secret123
 
 ## 9. 常用命令详解
 
+命令本身不是"对某个容器操作"，而是"对这个 project 标签集合操作"。
+
+### 9.1 `docker compose up` 的字面动作
+
+```
+docker compose up
+  ├── 1. 读 YAML（合并 override、替换变量）
+  ├── 2. 算出 project name
+  ├── 3. 确保网络存在
+  │        └── 不存在 → docker network create + 打 project 标签
+  ├── 4. 确保顶层 volumes 存在
+  │        └── 不存在 → docker volume create + 打 project 标签
+  ├── 5. 逐个 service 对齐容器
+  │        ├── 有 build 且本地镜像不存在  → 执行 docker build
+  │        ├── 容器已存在且 config-hash 相同 → 不动它
+  │        ├── 容器已存在但 config-hash 变了 → 删旧容器，按新配置重建
+  │        └── 容器不存在 → 新建 + 打标签
+  ├── 6. 按 depends_on 拓扑顺序启动
+  └── 7. 不带 -d 时聚合所有容器的 stdout/stderr 到当前终端，加服务名前缀
+           └── Ctrl-C → 停止全部容器
+```
+
+- `up` 是**幂等**的：跑第二遍不会重复创建，只会补齐差异。
+- 判断"配置变没变"靠 `com.docker.compose.config-hash` 标签，不是靠文件名或时间。
+- 只要某个服务的字段变了，`up` 就会重建那个容器；容器内非挂载目录的数据会丢。
+- 正在运行的容器不会被替换成新构建的镜像，必须触发重建。
+
+### 9.2 `docker compose down` 的字面动作
+
+```
+docker compose down
+  ├── 1. 按 label 查出本 project 的所有容器
+  ├── 2. 停容器：先 SIGTERM，默认 10s 后 SIGKILL（可用 stop_grace_period 调整）
+  ├── 3. 删除这些容器对象
+  ├── 4. 删除本 project 创建的网络
+  ├── 5. 不动命名卷（默认行为）
+  └── 6. 不动镜像
+```
+
+```
+docker compose down -v               # 额外删除：顶层 volumes 声明的命名卷 + 容器上的匿名卷
+docker compose down --rmi all        # 额外删除：本文件用到的镜像
+docker compose down --remove-orphans # 额外删除：属于本 project 但已不在当前 YAML 里的容器
+```
+
+- `down` 之后 `docker compose start` 会报错（容器对象已不存在），只能重新 `up` 重建容器。
+- `external: true` 的卷 / 网络不属于本 project，`down` 不会删。
+
+### 9.3 `stop` / `start` / `restart` 与 `down` 的区别（对象层面）
+
+| 命令                       | 对容器                | 对网络    | 对卷     | 之后能否 `start` 恢复 |
+| ------------------------ | ------------------ | ------ | ------ | --------------- |
+| `docker compose stop`    | 停止（对象保留，状态 Exited） | 保留     | 保留     | 是               |
+| `docker compose start`   | 启动已存在的容器（不重建）      | 保留     | 保留     | —               |
+| `docker compose restart` | 对已有容器执行 restart    | 保留     | 保留     | —               |
+| `docker compose down`    | 停止 + **删除容器对象**    | **删除** | 保留     | 只能 `up` 重建    |
+| `docker compose down -v` | 停止 + 删除容器对象        | **删除** | **删除** | 否               |
+
+- `stop` 是"关掉"，`down` 是"关掉并拆掉"。
+- `down` 删的是容器对象，所以容器内非挂载目录里的数据会一起消失。
+- 命名卷（如 `pgdata`）里的数据不受影响，数据库数据 `down` 后依然在。
+
+### 9.4 命令速查
+
 ```bash
-# 启动
+# 启动 / 停止
 docker compose up              # 前台启动（日志输出到终端）
 docker compose up -d           # 后台启动
 docker compose up -d --build   # 先重新构建镜像再启动
-
-# 停止
-docker compose down            # 停容器 + 删网络（保留卷）
-docker compose down -v         # 连卷一起删（⚠️ 数据丢失）
-docker compose stop            # 停容器但不删（可 restart 恢复）
+docker compose stop            # 停容器但不删容器对象（可 start 恢复）
+docker compose start           # 启动已存在但已停止的容器
+docker compose restart         # 重启已有容器
+docker compose down            # 停容器 + 删容器对象 + 删网络（保留卷）
+docker compose down -v         # 连卷一起删（数据丢失）
 
 # 查看
 docker compose ps              # 服务状态
 docker compose top             # 每个容器内的进程
-docker compose logs -f         # 所有服务的日志
+docker compose logs -f         # 所有服务的日志（聚合 + 服务名前缀）
 docker compose logs -f web     # 只看 web 服务的日志
 
 # 交互
@@ -432,6 +567,10 @@ docker compose run --rm web pytest  # 运行一次性命令
 docker compose build           # 构建所有服务的镜像
 docker compose build web       # 只构建 web
 docker compose pull            # 拉取所有镜像
+
+# 调试
+docker compose config              # 校验并展开 YAML（排错神器）
+docker compose config --services   # 列出所有服务名
 ```
 
 **重新构建时的 dangling 镜像：**
@@ -443,13 +582,6 @@ docker compose build（已有镜像时）
           └── docker image prune 清理
 ```
 
-⚠️ 正在运行的容器不会自动用新镜像，需重启容器。
-
-# 调试
-docker compose config          # 校验并展开 YAML（排错神器）
-docker compose config --services  # 列出所有服务名
-```
-
 ---
 
 ## 10. 生命周期流程图
@@ -457,43 +589,54 @@ docker compose config --services  # 列出所有服务名
 ```
 docker compose up
      │
-     ├── 读取 YAML
-     ├── 创建网络（默认网络 / 自定义 networks）
-     ├── 创建卷（顶层 volumes 定义的命名卷）
+     ├── 读取 YAML（合并 override、替换变量）
+     ├── 算出 project name（目录名 / -p / COMPOSE_PROJECT_NAME）
+     ├── 创建网络 <project>_default，并打上 project 标签
+     ├── 创建卷 <project>_<卷名>，并打上 project 标签
      ├── 检查本地镜像是否存在
-     │     ├─ 存在 → 跳过构建，直接启动
+     │     ├─ 存在 → 跳过构建
      │     └─ 不存在 → 执行 docker build（利用 layer cache 加速）
-     ├── 按 depends_on 顺序启动容器
+     ├── 按 depends_on 拓扑顺序启动容器
      │     ├── 先启动 db（等 healthy）
      │     ├── 再启动 redis
      │     └── 最后启动 web
-     └── 所有服务运行中
-     
+     └── 每个容器命名 <project>-<service>-<序号>，并打上全部 project 标签
+          → 所有服务运行中
+
 docker compose down
-     └── 停止所有容器 → 删除容器 → 删除网络（保留卷）
+     └── 按 project 标签查出对象
+          → 停止容器 → 删除容器对象 → 删除本 project 的网络
+          → 保留命名卷 / 保留镜像
 ```
 
 ---
 
 ## 11. Compose 与 docker 命令对照
 
-| Compose | 等效的 docker 命令 |
-|---------|-------------------|
-| `docker compose up -d` | `docker network create` + `docker volume create` + 多个 `docker run` |
-| `docker compose down` | `docker stop` + `docker rm`（多个容器）+ `docker network rm` |
-| `docker compose ps` | `docker ps --filter "com.docker.compose.project=..."` |
-| `docker compose logs` | `docker logs`（多个容器） |
-| `docker compose exec` | `docker exec`（进入指定容器） |
+| Compose                | 等效的 docker 命令                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `docker compose up -d` | `docker network create` + `docker volume create` + 多个 `docker run`（带 `--label com.docker.compose.project=<name>`） |
+| `docker compose down`  | `docker stop` + `docker rm`（多个容器）+ `docker network rm`                                                            |
+| `docker compose stop`  | `docker stop`（多个容器，不删对象）                                                                                          |
+| `docker compose start` | `docker start`（多个已存在容器）                                                                                           |
+| `docker compose ps`    | `docker ps --filter "label=com.docker.compose.project=..."`                                                       |
+| `docker compose logs`  | `docker logs`（多个容器，聚合输出）                                                                                          |
+| `docker compose exec`  | `docker exec`（进入指定容器）                                                                                             |
+
+注意：Compose 的 `up` 比"一次性执行这些命令"多了**状态对比**——它会读每个容器的 `config-hash` 标签，只重建配置变了的容器。
 
 ---
-
 ## 12. 注意事项
 
-| 注意点 | 说明 |
-|--------|------|
-| 现代 Compose 已废弃 `version` 字段 | 直接写 `services:` 开头即可 |
-| 服务名 = DNS 名 | `web` 容器里直接 `ping db` 通 |
-| `depends_on` 不保证就绪 | 要等健康检查必须用 `condition: service_healthy` |
-| `.env` 文件不要提交 git | 用 `.env.example` 做模板 |
-| `docker compose config` 是排错神器 | 展开所有变量，校验语法 |
-| 同项目下网络自动隔离 | 不同项目（`-p` 参数）的网络互不干扰 |
+| 注意点                             | 说明                                                |
+| ------------------------------- | ------------------------------------------------- |
+| 现代 Compose 已废弃 `version` 字段     | 直接写 `services:` 开头即可                              |
+| 服务名 = DNS 名                     | `web` 容器里直接 `ping db` 通                           |
+| `depends_on` 不保证就绪              | 要等健康检查必须用 `condition: service_healthy`            |
+| `.env` 文件不要提交 git               | 用 `.env.example` 做模板                              |
+| `docker compose config` 是排错神器   | 展开所有变量，校验语法                                       |
+| 同项目下网络自动隔离                      | 不同项目（`-p` 参数）的网络互不干扰                              |
+| 改目录名 = 改 project name           | 换个文件夹跑同一份 YAML，会当成新 project，容器/网络/卷全部新建           |
+| `container_name:` 会禁用 `--scale` | 写死容器名后无法起多副本，也没了 `<project>-<service>-<序号>` 的自动编号 |
+| `down` 不删卷、不删镜像                 | 要删卷加 `-v`，要删镜像加 `--rmi all`                       |
+| `up` 会重建配置变了的容器                 | 靠 `config-hash` 标签判断；重建会丢失容器内非挂载数据                |

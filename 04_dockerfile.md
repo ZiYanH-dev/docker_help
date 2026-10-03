@@ -1,7 +1,19 @@
 # 04 · Dockerfile 编写与最佳实践
 
-Dockerfile 是构建镜像的"食谱"。
-每条指令 等于 一层。
+## 本页核心
+
+- **本质**：`Dockerfile` 是**构建镜像的配方**（文本文件），每条指令按序执行并尽量复用缓存
+
+- **最重要**：
+	- 指令顺序决定缓存命中；
+	- `CMD` 可被覆盖、`ENTRYPOINT` 固定程序；
+	- **多阶段构建是瘦身核心**
+
+- **一句话**：依赖放前、代码放后最大化缓存；生产用多阶段 + alpine/distroless 基础镜像
+
+---
+
+Dockerfile 是构建镜像的"食谱"
 
 ## 全部指令速查
 | 指令                      | 作用                             |
@@ -23,7 +35,7 @@ Dockerfile 是构建镜像的"食谱"。
 | `SHELL ["exec","args"]` | 指定 RUN/CMD/ENTRYPOINT 用的 shell |
 | `ONBUILD <指令>`          | 当本镜像被别人 FROM 时触发               |
 
-## CMD vs ENTRYPOINT（最常混淆）
+## CMD 与 ENTRYPOINT 的区别
 - `CMD`：默认命令，**可被 `docker run` 后面的参数覆盖**
   ```dockerfile
   CMD ["nginx", "-g", "daemon off;"]
@@ -35,6 +47,7 @@ Dockerfile 是构建镜像的"食谱"。
   ENTRYPOINT ["nginx"]
   # docker run myimg -t   → 实际跑 nginx -t
   ```
+
 - 组合用法：`ENTRYPOINT` 固定程序 + `CMD` 给默认参数
   ```dockerfile
   ENTRYPOINT ["nginx"]
@@ -60,7 +73,8 @@ FROM gcr.io/distroless/base-debian12   # 或 alpine
 COPY --from=build /app /app
 ENTRYPOINT ["/app"]
 ```
-> 💡 效果：Go 镜像从 1GB+ 压到 ~20MB；Node/Java/Rust 同理。
+> 效果：Go 镜像从 1GB+ 压到 ~20MB；
+> 	Node/Java/Rust 同理。
 
 ## 实战示例：Python FastAPI
 ```dockerfile
@@ -89,12 +103,12 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ## 最佳实践清单
-- ✅ 用 `.dockerignore` 排除 node_modules/.git（见 02_images.md）
-- ✅ 固定基础镜像**具体版本**（`python:3.12` 而非 `python:latest`）
-- ✅ 合并 `RUN` 用 `&&` 并清包缓存：`apt-get install -y xxx && rm -rf /var/lib/apt/lists/*`
-- ✅ 不常变的指令放前面，最大化利用缓存
-- ✅ 用 `USER` 跑非 root，别全程 root
-- ✅ 生产用多阶段 + 精简基础镜像（alpine / distroless）
-- ✅ `CMD`/`ENTRYPOINT` 用 **exec 形式**（JSON 数组），信号才能正确传递
-- ❌ 别把 secrets 写进镜像（`ENV`/`COPY` 都会固化，改用运行时 `-e` 或 secret mount）
-- ❌ 别把不相干操作堆进一个超大 `RUN`（不利缓存与排查）
+- 用 `.dockerignore` 排除 node_modules/.git（见 02_images.md）
+- 固定基础镜像**具体版本**（`python:3.12` 而非 `python:latest`）
+- 合并 `RUN` 用 `&&` 并清包缓存：`apt-get install -y xxx && rm -rf /var/lib/apt/lists/*`
+- 不常变的指令放前面，最大化利用缓存
+- 用 `USER` 跑非 root，别全程 root
+- 生产用多阶段 + 精简基础镜像（alpine / distroless）
+- `CMD`/`ENTRYPOINT` 用 **exec 形式**（JSON 数组），信号才能正确传递
+- 别把 secrets 写进镜像（`ENV`/`COPY` 都会固化，改用运行时 `-e` 或 secret mount）
+- 别把不相干操作堆进一个超大 `RUN`（不利缓存与排查）

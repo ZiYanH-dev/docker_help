@@ -1,6 +1,16 @@
 # 03 · 容器操作 (Containers)
 
-容器的生命周期：创建运行 → 管理 → 进内排查 → 停止删除。
+## 本页核心
+
+- **本质**：容器 = 「镜像只读层 + 可写层 + namespace 隔离」里跑着进程
+
+- **最重要**：高频四命令 `run / ps / exec -it / logs`；**容器可写层是临时的，容器一删数据就丢**
+
+- **一句话**：容器删了，「器」里写的东西就没了，存数据要挂 Volume
+
+---
+
+容器的生命周期：创建运行 → 管理 → 进容器排查 → 停止删除。
 
 ## 运行容器
 ```bash
@@ -14,7 +24,7 @@ docker run --memory=512m --cpus=1.5 myapp    # 资源限制
 docker run --restart=unless-stopped myapp    # 挂掉 / 开机自动重启
 ```
 
-> 💡 `-p 8080:80` = 宿主端口:容器端口。`-P`（大写）随机映射所有 EXPOSE 端口。
+> `-p 8080:80` = 宿主端口:容器端口。`-P`（大写）随机映射所有 EXPOSE 端口。
 
 ## 日常管理
 ```bash
@@ -25,7 +35,11 @@ docker rename old new        # 改名
 docker pause / unpause web   # 冻结（挂起进程，省 CPU）
 ```
 
-## 进容器排查（最高频）
+## 进容器操作
+
+容器内部就是一个**隔离的文件系统**，本质和 Linux 服务器一样——有目录、文件、进程、网络栈。
+
+### 常用命令
 ```bash
 docker exec -it web bash     # 进容器开 shell（容器有 bash 时）
 docker exec -it web sh       # 没有 bash 时用 sh（alpine 等）
@@ -34,7 +48,7 @@ docker cp web:/app/log.txt ./   # 从容器拷文件出来
 docker cp ./conf.yml web:/app/  # 拷进去
 ```
 
-#### **`docker exec -it web bash` 拆解：**
+### docker exec 参数拆解
 
 ```
 docker exec     → 进入容器，执行一条命令
@@ -44,10 +58,6 @@ docker exec     → 进入容器，执行一条命令
 ```
 
 等价理解：`docker exec web ls /app` 是跑一条命令就退出，`docker exec -it web bash` 是启动 shell 让你一直敲。没有 `bash` 会报错——Docker 不知道要执行什么。
-
-## 进去能干什么
-
-容器内部就是一个**隔离的文件系统**，本质和 Linux 服务器一样——有目录、文件、进程、网络栈。
 
 ### 排查问题
 
@@ -107,7 +117,7 @@ curl  → 没有，用 wget 或 docker run --rm curlimages/curl
 vim   → 没有，用 cat 或 echo 改文件（不推荐，不要改运行中容器的文件）
 ```
 
-## 看状态与日志
+## 状态与日志查看
 ```bash
 docker logs web              # 看标准输出日志
 docker logs -f web           # 实时跟踪（像 tail -f）
@@ -118,7 +128,7 @@ docker inspect web           # 详情：IP、挂载、环境变量、状态
 docker port web              # 看端口映射关系
 ```
 
-## 删除
+## 容器删除
 ```bash
 docker rm web                # 删已停止的容器
 docker rm -f web             # 强制删（含运行中）

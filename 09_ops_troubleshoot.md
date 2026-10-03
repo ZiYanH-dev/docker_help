@@ -1,8 +1,18 @@
 # 09 · 运维、清理与排错
 
+## 本页核心
+
+- **本质**：一篇「翻车时翻」的排错 + 清理速查
+
+- **最重要**：排查顺序 `ps -a → logs → inspect → exec → 干净实例复现`；清理主力 `docker system prune`
+
+- **一句话**：容器起不来先看 `docker logs`；磁盘爆先 `builder prune`
+
+---
+
 磁盘爆了、容器起不来、端口冲突——翻这篇。
 
-## 清理（定期做，否则磁盘悄悄被吃光）
+## 清理
 ```bash
 docker container prune -f        # 删所有已停止容器
 docker image prune -a -f         # 删所有未被使用的镜像
@@ -12,13 +22,13 @@ docker builder prune -f          # 清 BuildKit 构建缓存
 docker system prune -a --volumes # 一把梭全清（含卷，最狠，慎用）
 ```
 
-## 看磁盘占用
+## 磁盘占用查看
 ```bash
 docker system df                 # 镜像/容器/卷各占多少
 docker system df -v              # 详细到每个对象
 ```
 
-## 进容器调试
+## 容器内调试
 ```bash
 docker exec -it <容器> sh        # 没 bash 用 sh
 docker logs -f <容器>            # 看日志

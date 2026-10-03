@@ -1,5 +1,15 @@
 # 08 · 镜像仓库 (Registry)
 
+## 本页核心
+
+- **本质**：仓库 = **存放和分发镜像的地方**（Docker Hub，或私有/自建 registry）
+
+- **最重要**：命名 `[registry/]repo[:tag]`，不写默认 `docker.io` + `latest`；**国内要配镜像加速**
+
+- **一句话**：推拉镜像靠仓库；私有走自建 registry/Harbor，地址换成内网域名
+
+---
+
 镜像存在哪、怎么命名、怎么推拉、国内怎么加速。
 
 ## 镜像命名规则
@@ -30,9 +40,9 @@ docker tag myapp:1.0 localhost:5000/myapp:1.0
 docker push localhost:5000/myapp:1.0
 docker pull localhost:5000/myapp:1.0
 ```
-> 💡 公司内网一般搭 Harbor / 云厂商容器 registry，用法同上，只是地址换成内网域名。
+> 公司内网一般搭 Harbor / 云厂商容器 registry，用法同上，只是地址换成内网域名。
 
-## 国内镜像加速（重要，没有 VPN 时）
+## 国内镜像加速
 Docker Hub 在国内常拉不动，配镜像加速器（改 Docker Desktop / daemon 配置）：
 ```json
 // ~/.docker/daemon.json
@@ -45,7 +55,7 @@ Docker Hub 在国内常拉不动，配镜像加速器（改 Docker Desktop / dae
 ```
 改完重启 Docker 生效。各云厂商（阿里云/腾讯云）也有免费加速器，需登录控制台领取专属地址。
 
-## 清理
+## 镜像与仓库清理
 ```bash
 docker rmi user/repo:oldtag      # 删本地某个 tag（镜像本体还在则只删引用）
 docker image prune -a            # 删所有未被容器引用的镜像
